@@ -11,6 +11,7 @@ class KF:
         # mean of state GRV
         self._x = np.array([initial_x, initial_x_vel, initial_y, initial_y_vel])
         self._acceleration_variance = acceleration_variance
+        
         # covariance of state GRV #usually we want to set this to a specific value
         self._P = np.eye(4)
         
@@ -22,10 +23,17 @@ class KF:
                         [0, 0, 0, 1]]) 
         new_x = F.dot(self._x)
         
+        # G is the matrix that describes the relationship between the state and the control input
         G = np.array([[dt**2/2, 0],
                      [dt,      0],
                      [0, dt**2/2],
                      [0,      dt]])    
+        
+        # G matrix for extended kalman filter
+        G = np.array([[dt**2/2, 0, 0, 0],
+                      [dt,      0, 0, 0],
+                      [0, 0, dt**2/2, 0],
+                      [0, 0,      dt, 0]])
                  
         new_P = F.dot(self._P).dot(F.T) + G.dot(G.T) * self._acceleration_variance
        

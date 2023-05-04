@@ -31,8 +31,7 @@ for i in range(NUM_STEPS):
     covs.append(kf.covariance)
     
     real_pos = real_pos + real_velocity.dot(DT)
-    #real_pos[1] = real_pos[1] + real_velocity[1] * DT
-    
+
     kf.prediction(DT)
     if i % MEAS_EVERY_STEPS == 0 and i != 0:
         kf.update(measurement_value=real_pos + np.random.randn() * np.sqrt(meas_variance), 
