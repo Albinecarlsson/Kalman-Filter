@@ -1,0 +1,12 @@
+[project]
+name = "kalman-filter"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "dash[cloud]>=2.14.0",
+    "matplotlib>=3.9.4",
+    "numpy>=2.0.2",
+    "plotly>=5.17.0",
+]

@@ -1,0 +1,4 @@
+numpy
+matplotlib
+dash>=2.14.0
+plotly>=5.17.0

@@ -1,0 +1,506 @@
+"""
+Web-based Saab GlobalEye Radar Simulation using Plotly Dash.
+Interactive radar tracking display with real-time updates and controls.
+"""
+
+import numpy as np
+from dash import Dash, html, dcc, Input, Output, State
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import json
+
+from simulator import RadarSimulationArea, Target
+from config import (
+    RadarConfig, TargetConfig, SimulationConfig, VisualizationConfig,
+    print_config
+)
+
+class WebRadarSimulation:
+    """Web-based radar simulation with Plotly Dash."""
+    
+    def __init__(self):
+        """Initialize the web radar simulation."""
+        self.app = Dash(__name__)
+        self.app.scripts.config.serve_locally = True
+        self.app.css.config.serve_locally = True
+        self.area = RadarSimulationArea()
+        
+        # Simulation state
+        self.frame_count = 0
+        self.is_running = True
+        self.radar_sweep_angle = RadarConfig.COVERAGE_ANGLE_START_DEG
+        
+        # Coverage angles
+        self.coverage_angle_start = RadarConfig.COVERAGE_ANGLE_START_DEG
+        self.coverage_angle_end = RadarConfig.COVERAGE_ANGLE_START_DEG + RadarConfig.COVERAGE_ANGLE_TOTAL_DEG
+        
+        # Statistics tracking
+        self.total_detections = 0
+        self.total_tracks = 0
+        
+        self._setup_layout()
+        self._setup_callbacks()
+    
+    def _setup_layout(self):
+        """Setup the Dash app layout."""
+        self.app.layout = html.Div([
+            html.Div([
+                html.H1('Saab GlobalEye Airborne Radar System', 
+                       style={'textAlign': 'center', 'color': '#2c3e50', 'marginBottom': 10}),
+                html.H3('Kalman Filter Multi-Target Tracking', 
+                       style={'textAlign': 'center', 'color': '#7f8c8d', 'marginTop': 0}),
+            ], style={'backgroundColor': '#ecf0f1', 'padding': '20px', 'borderRadius': '10px', 'marginBottom': '20px'}),
+            
+            # Control panel
+            html.Div([
+                html.Div([
+                    html.Button('⏸ Pause', id='pause-button', n_clicks=0,
+                               style={'padding': '10px 20px', 'fontSize': '16px', 'marginRight': '10px',
+                                     'backgroundColor': '#3498db', 'color': 'white', 'border': 'none',
+                                     'borderRadius': '5px', 'cursor': 'pointer'}),
+                    html.Button('🔄 Reset', id='reset-button', n_clicks=0,
+                               style={'padding': '10px 20px', 'fontSize': '16px', 'marginRight': '10px',
+                                     'backgroundColor': '#e74c3c', 'color': 'white', 'border': 'none',
+                                     'borderRadius': '5px', 'cursor': 'pointer'}),
+                    html.Label('Speed: ', style={'marginLeft': '20px', 'fontSize': '16px'}),
+                    dcc.Slider(id='speed-slider', min=50, max=500, step=50, value=SimulationConfig.FRAME_INTERVAL_MS,
+                              marks={50: '50ms', 100: '100ms', 200: '200ms', 500: '500ms'},
+                              tooltip={"placement": "bottom", "always_visible": True}),
+                ], style={'display': 'flex', 'alignItems': 'center', 'padding': '15px',
+                         'backgroundColor': '#ffffff', 'borderRadius': '10px', 'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}),
+            ], style={'marginBottom': '20px'}),
+            
+            # Main visualization
+            dcc.Graph(id='radar-display', style={'height': '800px'}),
+            
+            # Statistics panel
+            html.Div(id='stats-panel', 
+                    style={'backgroundColor': '#2c3e50', 'color': '#ecf0f1', 'padding': '20px',
+                          'borderRadius': '10px', 'fontFamily': 'monospace', 'marginTop': '20px'}),
+            
+            # Interval component for updates
+            dcc.Interval(id='interval-component', interval=SimulationConfig.FRAME_INTERVAL_MS, n_intervals=0),
+            
+            # Store for simulation state
+            dcc.Store(id='sim-state', data={'running': True, 'frame': 0}),
+        ], style={'maxWidth': '1600px', 'margin': '0 auto', 'padding': '20px', 'backgroundColor': '#f8f9fa'})
+    
+    def _setup_callbacks(self):
+        """Setup Dash callbacks for interactivity."""
+        
+        @self.app.callback(
+            [Output('radar-display', 'figure'),
+             Output('stats-panel', 'children'),
+             Output('sim-state', 'data'),
+             Output('pause-button', 'children')],
+            [Input('interval-component', 'n_intervals'),
+             Input('pause-button', 'n_clicks'),
+             Input('reset-button', 'n_clicks')],
+            [State('sim-state', 'data')]
+        )
+        def update_simulation(n_intervals, pause_clicks, reset_clicks, sim_state):
+            """Update the radar display and statistics."""
+            from dash import callback_context
+            
+            # Initialize sim_state if None
+            if sim_state is None:
+                sim_state = {'running': True, 'frame': 0}
+            
+            # Handle button clicks
+            if callback_context.triggered:
+                trigger_id = callback_context.triggered[0]['prop_id'].split('.')[0]
+                
+                if trigger_id == 'pause-button':
+                    sim_state['running'] = not sim_state['running']
+                elif trigger_id == 'reset-button':
+                    self._reset_simulation()
+                    sim_state['frame'] = 0
+                    sim_state['running'] = True
+            
+            # Only update if running
+            if not sim_state.get('running', True):
+                fig = self._create_figure()
+                stats = self._create_stats()
+                button_text = '▶ Resume'
+                return fig, stats, sim_state, button_text
+            
+            try:
+                # Update simulation
+                self.frame_count = sim_state.get('frame', 0) + 1
+                sim_state['frame'] = self.frame_count
+                
+                # Update radar sweep angle
+                sweep_range = self.coverage_angle_end - self.coverage_angle_start
+                self.radar_sweep_angle = self.coverage_angle_start + \
+                                        ((self.radar_sweep_angle - self.coverage_angle_start + 
+                                          VisualizationConfig.RADAR_SWEEP_SPEED_DEG_PER_FRAME) % sweep_range)
+                
+                # Spawn random targets
+                self._spawn_targets()
+                
+                # Update simulation
+                self.area.step()
+                
+                # Create visualization
+                fig = self._create_figure()
+                stats = self._create_stats()
+                button_text = '⏸ Pause'
+            except Exception as e:
+                import traceback
+                print(f'[ERROR] Callback failed: {e}')
+                traceback.print_exc()
+                fig = go.Figure()
+                stats = html.P(f'Error: {e}', style={'color': 'red'})
+                button_text = '⏸ Pause'
+            
+            return fig, stats, sim_state, button_text
+        
+        @self.app.callback(
+            Output('interval-component', 'interval'),
+            Input('speed-slider', 'value')
+        )
+        def update_speed(speed_value):
+            """Update simulation speed."""
+            return speed_value
+    
+    def _spawn_targets(self):
+        """Spawn random targets based on configuration."""
+        if len(self.area.targets) < TargetConfig.MAX_TARGETS:
+            if np.random.rand() < TargetConfig.SPAWN_RATE:
+                # Generate random position within radar coverage
+                range_m = np.random.uniform(
+                    50000,  # 50 km minimum
+                    RadarConfig.DETECTION_RANGE_KM * 1000
+                )
+                angle_rad = np.radians(np.random.uniform(
+                    self.coverage_angle_start,
+                    self.coverage_angle_end
+                ))
+                
+                position = np.array([
+                    range_m * np.cos(angle_rad),
+                    range_m * np.sin(angle_rad)
+                ])
+                
+                # Random velocity
+                velocity_ms = np.random.uniform(
+                    TargetConfig.MIN_VELOCITY_MS,
+                    TargetConfig.MAX_VELOCITY_MS
+                )
+                velocity_angle = np.radians(np.random.uniform(0, 360))
+                velocity = np.array([
+                    velocity_ms * np.cos(velocity_angle),
+                    velocity_ms * np.sin(velocity_angle)
+                ])
+                
+                # Random acceleration
+                accel_ms2 = np.random.uniform(
+                    TargetConfig.MIN_ACCELERATION_MS2,
+                    TargetConfig.MAX_ACCELERATION_MS2
+                )
+                accel_angle = np.radians(np.random.uniform(0, 360))
+                acceleration = np.array([
+                    accel_ms2 * np.cos(accel_angle),
+                    accel_ms2 * np.sin(accel_angle)
+                ])
+                
+                self.area.add_target(
+                    position[0], position[1],
+                    velocity[0], velocity[1],
+                    acceleration[0], acceleration[1]
+                )
+    
+    def _create_figure(self):
+        """Create the Plotly figure with radar display."""
+        fig = make_subplots(
+            rows=1, cols=1,
+            specs=[[{'type': 'scatter'}]],
+            subplot_titles=['GlobalEye Radar Display']
+        )
+        
+        range_km = RadarConfig.DETECTION_RANGE_KM
+        
+        # Draw radar coverage sector (background)
+        theta_coverage = np.linspace(
+            np.radians(self.coverage_angle_start),
+            np.radians(self.coverage_angle_end),
+            100
+        )
+        x_coverage = np.concatenate([[0], range_km * np.cos(theta_coverage), [0]])
+        y_coverage = np.concatenate([[0], range_km * np.sin(theta_coverage), [0]])
+        
+        fig.add_trace(go.Scatter(
+            x=x_coverage, y=y_coverage,
+            fill='toself',
+            fillcolor='rgba(52, 152, 219, 0.05)',
+            line=dict(color='rgba(52, 152, 219, 0.3)', width=2, dash='dash'),
+            name='Radar Coverage',
+            hoverinfo='skip'
+        ))
+        
+        # Draw range rings
+        for range_ring_km in VisualizationConfig.RANGE_RINGS_KM:
+            if range_ring_km <= range_km:
+                theta_ring = np.linspace(
+                    np.radians(self.coverage_angle_start),
+                    np.radians(self.coverage_angle_end),
+                    100
+                )
+                x_ring = range_ring_km * np.cos(theta_ring)
+                y_ring = range_ring_km * np.sin(theta_ring)
+                
+                fig.add_trace(go.Scatter(
+                    x=x_ring, y=y_ring,
+                    mode='lines',
+                    line=dict(color='rgba(128, 128, 128, 0.2)', width=1, dash='dot'),
+                    name=f'{range_ring_km} km',
+                    hoverinfo='name',
+                    showlegend=False
+                ))
+        
+        # Draw illumination wedge (bright primary beam)
+        theta_illum = np.linspace(
+            np.radians(self.radar_sweep_angle),
+            np.radians(self.radar_sweep_angle + VisualizationConfig.RADAR_SWEEP_WIDTH_DEG * 2.5),
+            20
+        )
+        x_illum = np.concatenate([[0], range_km * np.cos(theta_illum), [0]])
+        y_illum = np.concatenate([[0], range_km * np.sin(theta_illum), [0]])
+        
+        fig.add_trace(go.Scatter(
+            x=x_illum, y=y_illum,
+            fill='toself',
+            fillcolor=f'rgba(0, 255, 0, {VisualizationConfig.ILLUMINATION_ALPHA})',
+            line=dict(color='rgba(255, 255, 255, 0.5)', width=1),
+            name='Active Illumination',
+            hoverinfo='name'
+        ))
+        
+        # Draw radar sweep trail
+        theta_sweep = np.linspace(
+            np.radians(self.radar_sweep_angle),
+            np.radians(self.radar_sweep_angle + VisualizationConfig.RADAR_SWEEP_WIDTH_DEG),
+            15
+        )
+        x_sweep = np.concatenate([[0], range_km * np.cos(theta_sweep), [0]])
+        y_sweep = np.concatenate([[0], range_km * np.sin(theta_sweep), [0]])
+        
+        fig.add_trace(go.Scatter(
+            x=x_sweep, y=y_sweep,
+            fill='toself',
+            fillcolor=f'rgba(0, 200, 0, {VisualizationConfig.RADAR_SWEEP_ALPHA})',
+            line=dict(color='rgba(0, 200, 0, 0)', width=0),
+            name='Sweep Trail',
+            hoverinfo='skip',
+            showlegend=False
+        ))
+        
+        # Get measurements
+        measurements = self.area.radar.detect(self.area.targets)
+        self.total_detections += len(measurements)
+        
+        # Plot true targets
+        if self.area.targets:
+            target_positions = np.array([t.position / 1000.0 for t in self.area.targets])
+            target_velocities = np.array([t.velocity * 3.6 for t in self.area.targets])  # km/h
+            
+            hover_text = [
+                f'Target<br>Pos: ({pos[0]:.1f}, {pos[1]:.1f}) km<br>Vel: {np.linalg.norm(vel):.0f} km/h'
+                for pos, vel in zip(target_positions, target_velocities)
+            ]
+            
+            fig.add_trace(go.Scatter(
+                x=target_positions[:, 0],
+                y=target_positions[:, 1],
+                mode='markers',
+                marker=dict(
+                    size=VisualizationConfig.TRUE_TARGET_SIZE / 3,
+                    color=VisualizationConfig.TRUE_TARGET_COLOR,
+                    symbol='circle',
+                    line=dict(width=2, color='white')
+                ),
+                name='True Targets',
+                text=hover_text,
+                hoverinfo='text'
+            ))
+        
+        # Plot measurements
+        if measurements:
+            meas_positions = np.array([m[1] / 1000.0 for m in measurements])
+            
+            fig.add_trace(go.Scatter(
+                x=meas_positions[:, 0],
+                y=meas_positions[:, 1],
+                mode='markers',
+                marker=dict(
+                    size=VisualizationConfig.MEASUREMENT_SIZE / 3,
+                    color=VisualizationConfig.MEASUREMENT_COLOR,
+                    symbol='x',
+                    line=dict(width=2)
+                ),
+                name='Radar Detections',
+                hoverinfo='name'
+            ))
+        
+        # Plot tracked targets with velocity vectors
+        if self.area.tracker.tracks:
+            self.total_tracks = len(self.area.tracker.tracks)
+            
+            tracked_positions = []
+            tracked_velocities = []
+            hover_tracks = []
+            
+            for track in self.area.tracker.tracks:
+                pos = track.get_estimated_position() / 1000.0
+                vel = track.get_estimated_velocity() * 3.6  # km/h
+                tracked_positions.append(pos)
+                tracked_velocities.append(vel)
+                
+                hover_tracks.append(
+                    f'Track {track.id}<br>'
+                    f'Pos: ({pos[0]:.1f}, {pos[1]:.1f}) km<br>'
+                    f'Vel: {np.linalg.norm(vel):.0f} km/h<br>'
+                    f'Age: {track.time_since_update:.1f}s'
+                )
+            
+            tracked_positions = np.array(tracked_positions)
+            tracked_velocities = np.array(tracked_velocities)
+            
+            # Plot tracked positions
+            fig.add_trace(go.Scatter(
+                x=tracked_positions[:, 0],
+                y=tracked_positions[:, 1],
+                mode='markers',
+                marker=dict(
+                    size=VisualizationConfig.TRACKED_TARGET_SIZE / 3,
+                    color=VisualizationConfig.TRACKED_TARGET_COLOR,
+                    symbol='square',
+                    line=dict(width=2, color='white')
+                ),
+                name='Tracked Targets',
+                text=hover_tracks,
+                hoverinfo='text'
+            ))
+            
+            # Add velocity vectors
+            for pos, vel in zip(tracked_positions, tracked_velocities):
+                vel_ms = vel / 3.6  # back to m/s
+                end_pos = pos + (vel_ms * VisualizationConfig.VELOCITY_VECTOR_TIME_S / 1000.0)
+                
+                fig.add_annotation(
+                    x=end_pos[0], y=end_pos[1],
+                    ax=pos[0], ay=pos[1],
+                    xref='x', yref='y',
+                    axref='x', ayref='y',
+                    showarrow=True,
+                    arrowhead=2,
+                    arrowsize=1,
+                    arrowwidth=2,
+                    arrowcolor=VisualizationConfig.VELOCITY_VECTOR_COLOR,
+                    opacity=VisualizationConfig.VELOCITY_VECTOR_ALPHA
+                )
+        
+        # Radar center
+        fig.add_trace(go.Scatter(
+            x=[0], y=[0],
+            mode='markers',
+            marker=dict(
+                size=VisualizationConfig.RADAR_CENTER_SIZE / 2,
+                color=VisualizationConfig.RADAR_COLOR,
+                symbol='star',
+                line=dict(width=2, color='white')
+            ),
+            name='GlobalEye Platform',
+            hoverinfo='name'
+        ))
+        
+        # Update layout
+        fig.update_layout(
+            xaxis=dict(
+                title='X Position (km)',
+                range=VisualizationConfig.PLOT_XLIM_KM,
+                scaleanchor='y',
+                scaleratio=1,
+                showgrid=True,
+                gridcolor='rgba(128, 128, 128, 0.1)'
+            ),
+            yaxis=dict(
+                title='Y Position (km)',
+                range=VisualizationConfig.PLOT_YLIM_KM,
+                showgrid=True,
+                gridcolor='rgba(128, 128, 128, 0.1)'
+            ),
+            plot_bgcolor='#f8f9fa',
+            paper_bgcolor='white',
+            hovermode='closest',
+            showlegend=True,
+            legend=dict(
+                x=1.02,
+                y=1,
+                bgcolor='rgba(255, 255, 255, 0.9)',
+                bordercolor='rgba(0, 0, 0, 0.2)',
+                borderwidth=1
+            ),
+            margin=dict(l=50, r=200, t=50, b=50)
+        )
+        
+        return fig
+    
+    def _create_stats(self):
+        """Create statistics panel content."""
+        stats_lines = [
+            html.H3('System Statistics', style={'borderBottom': '2px solid #3498db', 'paddingBottom': '10px'}),
+            html.Div([
+                html.P([html.Strong('Frame: '), f'{self.frame_count}']),
+                html.P([html.Strong('Simulation Time: '), f'{self.frame_count * SimulationConfig.TIMESTEP_S:.1f}s']),
+                html.Br(),
+                html.P([html.Strong('Active Targets: '), f'{len(self.area.targets)}']),
+                html.P([html.Strong('Active Tracks: '), f'{len(self.area.tracker.tracks)}']),
+                html.P([html.Strong('Total Targets: '), f'{len(self.area.targets)}']),
+                html.P([html.Strong('Simulation Time: '), f'{self.area.time:.0f}s']),
+                html.Br(),
+                html.H4('Radar Configuration', style={'color': '#3498db'}),
+                html.P([html.Strong('Range: '), f'{RadarConfig.DETECTION_RANGE_KM} km']),
+                html.P([html.Strong('Coverage: '), f'{RadarConfig.COVERAGE_ANGLE_TOTAL_DEG}° sector']),
+                html.P([html.Strong('Detection Probability: '), f'{RadarConfig.DETECTION_PROBABILITY * 100:.0f}%']),
+                html.P([html.Strong('Measurement Noise: '), f'{RadarConfig.MEASUREMENT_NOISE_M:.0f}m RMS']),
+                html.Br(),
+                html.H4('Target Parameters', style={'color': '#e74c3c'}),
+                html.P([html.Strong('Velocity Range: '), 
+                       f'{TargetConfig.MIN_VELOCITY_MS * 3.6:.0f}-{TargetConfig.MAX_VELOCITY_MS * 3.6:.0f} km/h']),
+                html.P([html.Strong('Max Targets: '), f'{TargetConfig.MAX_TARGETS}']),
+            ], style={'fontSize': '14px'})
+        ]
+        
+        return stats_lines
+    
+    def _reset_simulation(self):
+        """Reset the simulation."""
+        self.area = RadarSimulationArea()
+        self.frame_count = 0
+        self.radar_sweep_angle = RadarConfig.COVERAGE_ANGLE_START_DEG
+        self.total_detections = 0
+        self.total_tracks = 0
+    
+    def run(self, debug=False, port=8050):
+        """Run the web application."""
+        print("="*70)
+        print("Saab GlobalEye Web-Based Radar Simulation")
+        print_config()
+        print("\n" + "="*70)
+        print(f"Starting web server on http://localhost:{port}")
+        print("Open your browser and navigate to the URL above.")
+        print("Press Ctrl+C to stop the server.")
+        print("="*70)
+        
+        self.app.run(debug=debug, port=port, host='0.0.0.0')
+
+
+def main():
+    """Main entry point."""
+    sim = WebRadarSimulation()
+    sim.run(debug=True, port=8050)
+
+
+if __name__ == '__main__':
+    main()
