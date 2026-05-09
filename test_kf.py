@@ -39,6 +39,9 @@ class TestKF(unittest.TestCase):
 
         kf = KF(x,xv,y,yv, acceleration_variance=1.2)
 
+        det_before = np.linalg.det(kf.covariance)
+        det_after = det_before
+
         for i in range(10):
             det_before = np.linalg.det(kf.covariance)
             kf.prediction(0.1)
@@ -54,7 +57,8 @@ class TestKF(unittest.TestCase):
         yv = 2
 
         kf = KF(x,xv,y,yv, acceleration_variance=1.2)
-        kf.update(0.1, 0.1)
+        measurement = np.array([0.1, 0.1])
+        kf.update(measurement, 0.1)
 
 
     def test_calling_update_decrease_state_uncertainty(self):
@@ -65,7 +69,8 @@ class TestKF(unittest.TestCase):
 
         kf = KF(x,xv,y,yv, acceleration_variance=1.2)
         det_before = np.linalg.det(kf.covariance)
-        kf.update(0.1, 0.01)
+        measurement = np.array([0.1, 0.1])
+        kf.update(measurement, 0.01)
         det_after = np.linalg.det(kf.covariance)
 
         self.assertLess(det_after, det_before)

@@ -1,7 +1,11 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "kalman-filter"
 version = "0.1.0"
-description = "Add your description here"
+description = "Radar target tracking simulation using Kalman filtering"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = [
@@ -10,3 +14,35 @@ dependencies = [
     "numpy>=2.0.2",
     "plotly>=5.17.0",
 ]
+
+[project.scripts]
+kalman-filter = "kalman_filter.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "ruff>=0.8.0",
+    "pyright>=1.1.390",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
+[tool.pyright]
+pythonVersion = "3.9"
+typeCheckingMode = "basic"
+exclude = [
+    "**/__pycache__",
+    "web_radar_sim.py.bak",
+    "web_radar_sim_backup2.py",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

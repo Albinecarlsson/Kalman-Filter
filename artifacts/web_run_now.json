@@ -1,0 +1,115 @@
+{
+  "mode": "web",
+  "timestamp_utc": "2026-05-09T12:48:05.470738+00:00",
+  "scenario": "default",
+  "seed": 123,
+  "seed_override": 123,
+  "config": {
+    "name": "default",
+    "radar": {
+      "detection_range_km": 350.0,
+      "measurement_noise_m": 75.0,
+      "detection_probability": 0.98,
+      "scan_period_s": 1.0,
+      "coverage_angle_start_deg": 30.0,
+      "coverage_angle_end_deg": 150.0,
+      "radar_position_x_m": 0.0,
+      "radar_position_y_m": 0.0
+    },
+    "target": {
+      "max_targets": 20,
+      "spawn_rate": 0.2,
+      "min_velocity_ms": 150.0,
+      "max_velocity_ms": 300.0,
+      "arc_spawn_velocity_min_ms": 150.0,
+      "arc_spawn_velocity_max_ms": 300.0,
+      "side_spawn_velocity_min_ms": 150.0,
+      "side_spawn_velocity_max_ms": 250.0,
+      "front_spawn_velocity_min_ms": 100.0,
+      "front_spawn_velocity_max_ms": 250.0,
+      "min_acceleration_ms2": -0.5,
+      "max_acceleration_ms2": 0.5,
+      "spawn_distance_offset_km": 20.0,
+      "spawn_locations": [
+        "arc",
+        "left",
+        "right",
+        "front"
+      ],
+      "spawn_weights": [
+        0.4,
+        0.2,
+        0.2,
+        0.2
+      ],
+      "out_of_bounds_km": 600.0
+    },
+    "kalman": {
+      "acceleration_variance": 5.0,
+      "initial_position_variance_m2": 1000.0,
+      "initial_velocity_variance_m2s2": 100.0
+    },
+    "tracker": {
+      "max_track_age_s": 30.0,
+      "min_hits_to_confirm": 3,
+      "association_threshold_km": 15.0,
+      "max_tracks_display": 10
+    },
+    "simulation": {
+      "area_width_km": 500.0,
+      "area_height_km": 500.0,
+      "timestep_s": 1.0,
+      "num_frames": 1000,
+      "frame_interval_ms": 100,
+      "random_seed": 123
+    },
+    "visualization": {
+      "figure_width": 16,
+      "figure_height": 8,
+      "figure_dpi": 100,
+      "plot_ylim_km": [
+        -50.0,
+        332.5
+      ],
+      "range_rings_km": [
+        100.0,
+        200.0,
+        300.0
+      ],
+      "true_target_size": 80,
+      "measurement_size": 60,
+      "tracked_target_size": 120,
+      "radar_center_size": 20,
+      "true_target_color": "blue",
+      "true_target_marker": "o",
+      "true_target_alpha": 0.7,
+      "measurement_color": "yellow",
+      "measurement_marker": "x",
+      "measurement_alpha": 0.8,
+      "measurement_linewidth": 2,
+      "tracked_target_color": "red",
+      "tracked_target_marker": "s",
+      "tracked_target_edgecolor": "darkred",
+      "tracked_target_linewidth": 2,
+      "radar_color": "green",
+      "velocity_vector_color": "red",
+      "velocity_vector_linewidth": 2,
+      "velocity_vector_alpha": 0.6,
+      "velocity_vector_time_s": 60.0,
+      "velocity_vector_min_speed_ms": 10.0,
+      "radar_sweep_color": "lime",
+      "radar_sweep_alpha": 0.3,
+      "radar_sweep_width_deg": 20.0,
+      "radar_sweep_speed_deg_per_frame": 15.0,
+      "illumination_color": "lime",
+      "illumination_alpha": 0.2,
+      "grid_alpha": 0.3,
+      "grid_linestyle": "--",
+      "legend_location": "upper left",
+      "legend_fontsize": 9,
+      "legend_framealpha": 0.9,
+      "stats_fontsize": 10,
+      "stats_font_family": "monospace"
+    }
+  }
+}

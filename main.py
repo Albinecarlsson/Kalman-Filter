@@ -1,4 +1,3 @@
-from turtle import position
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -34,7 +33,7 @@ for i in range(NUM_STEPS):
 
     kf.prediction(DT)
     if i % MEAS_EVERY_STEPS == 0 and i != 0:
-        kf.update(measurement_value=real_pos + np.random.randn() * np.sqrt(meas_variance), 
+        kf.update(measurement_value=real_pos + np.random.randn(2) * np.sqrt(meas_variance), 
                   measurement_variance=meas_variance)
         
     real_xys.append(real_pos)

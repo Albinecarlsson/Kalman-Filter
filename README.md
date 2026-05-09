@@ -14,14 +14,17 @@ This project simulates a Saab GlobalEye (Erieye) airborne early warning radar sy
 - **Live Visualization**: Real-time animated display with radar sweep, range rings, and velocity vectors
 - **Configurable Parameters**: Comprehensive configuration system for all simulation parameters
 
-## Files
+## Project Layout
 
-- `kf.py` - Kalman Filter implementation
-- `simulator.py` - Radar and target simulation classes
-- `live_radar_sim.py` - Live animated radar display
-- `radar_demo.py` - Static visualization demo
-- `config.py` - **Configuration parameters for all aspects of the simulation**
-- `example_usage.py` - Examples of using configuration system
+- `src/kalman_filter/` - Main package implementation
+	- `kf.py` - Kalman Filter implementation
+	- `simulator.py` - Radar and target simulation classes
+	- `live_radar_sim.py` - Live animated radar display
+	- `web_radar_sim.py` - Dash web simulation
+	- `radar_demo.py` - Static visualization demo
+	- `config.py` - Configuration parameters
+	- `cli.py` - Unified CLI entrypoint
+- Root `*.py` files are compatibility shims that forward to `src/kalman_filter`
 - `test_kf.py` - Unit tests for Kalman filter
 
 ## Configuration System
@@ -68,9 +71,47 @@ All simulation parameters are centralized in `config.py`, organized into categor
 
 ### Basic Usage
 
-Run the default simulation:
+Run the default live simulation:
 ```bash
 python live_radar_sim.py
+```
+
+### CLI Usage (recommended)
+
+After installing in editable mode:
+```bash
+python -m pip install -e .
+```
+
+Use the unified CLI:
+```bash
+kalman-filter live
+kalman-filter web
+kalman-filter demo
+```
+
+Run with scenario profiles:
+```bash
+kalman-filter live --scenario high_traffic
+kalman-filter web --scenario low_noise
+kalman-filter demo --scenario long_range
+```
+
+Deterministic replay + metadata export:
+```bash
+kalman-filter demo --scenario low_noise --seed 42 --metadata-out artifacts/demo_run.json
+kalman-filter live --seed 123 --metadata-out artifacts/live_run.json
+kalman-filter web --seed 123 --metadata-out artifacts/web_run.json
+```
+
+Verify two runs are identical:
+```bash
+kalman-filter verify artifacts/run_a.json artifacts/run_b.json
+```
+
+You can also run module mode directly from source:
+```bash
+PYTHONPATH=src python -m kalman_filter live
 ```
 
 ### Custom Configuration
