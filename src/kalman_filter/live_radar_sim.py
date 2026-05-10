@@ -118,14 +118,14 @@ class LiveRadarSimulation:
         self.ax_radar.legend(loc=self.vis_cfg.legend_location,
                             fontsize=self.vis_cfg.legend_fontsize)
 
-    def spawn_random_target(self):
+    def spawn_random_target(self, force: bool = False):
         """Spawn a random aircraft target at the edge of the radar coverage."""
         rng = self.area.rng
 
         if len(self.area.targets) >= self.max_targets:
             return
 
-        if rng.random() > self.spawn_rate:
+        if not force and rng.random() > self.spawn_rate:
             return
 
         # Spawn aircraft with realistic velocities using config parameters
@@ -175,11 +175,6 @@ class LiveRadarSimulation:
 
         self.area.add_target(x, y, vx, vy, ax, ay)
 
-    def remove_out_of_bounds_targets(self):
-        """Remove targets that have moved far outside the area."""
-        self.area.targets = [t for t in self.area.targets
-                            if np.linalg.norm(t.position) < self.target_cfg.out_of_bounds_m]
-
     def update_frame(self, frame):
         """Update simulation and plot for one frame."""
         # Spawn new targets randomly
@@ -189,8 +184,9 @@ class LiveRadarSimulation:
         self.area.step()
         self.step_count += 1
 
-        # Remove out-of-bounds targets
-        self.remove_out_of_bounds_targets()
+        # Immediately backfill removed targets to maintain traffic level
+        for _ in range(self.area.last_removed_targets):
+            self.spawn_random_target(force=True)
 
         # Update radar sweep visual effect (coverage angle range)
         self.radar_sweep_angle = self.coverage_angle_start + \

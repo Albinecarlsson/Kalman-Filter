@@ -261,6 +261,7 @@ class RadarSimulationArea:
         self.time = 0.0
         self.dt = self.scenario.simulation.timestep_s
         self.last_measurements: List[Tuple[int, np.ndarray]] = []
+        self.last_removed_targets: int = 0
 
     def add_target(self, x: float, y: float, vx: float, vy: float,
                   ax: float = 0.0, ay: float = 0.0) -> int:
@@ -270,11 +271,23 @@ class RadarSimulationArea:
         self.targets.append(target)
         return target_id
 
+    def remove_out_of_bounds_targets(self, threshold_m: Optional[float] = None) -> int:
+        """Remove targets outside the configured/provided radius and return count removed."""
+        limit = threshold_m if threshold_m is not None else self.scenario.target.out_of_bounds_m
+        before = len(self.targets)
+        self.targets = [t for t in self.targets if np.linalg.norm(t.position) < limit]
+        removed = before - len(self.targets)
+        self.last_removed_targets = removed
+        return removed
+
     def step(self) -> None:
         """Execute one simulation step."""
         # Move targets
         for target in self.targets:
             target.move(self.dt)
+
+        # Remove targets that left simulation area
+        self.remove_out_of_bounds_targets()
 
         # Get radar detections
         measurements = self.radar.detect(self.targets)

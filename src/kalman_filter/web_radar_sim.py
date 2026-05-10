@@ -41,9 +41,15 @@ def create_app(scenario_name: str = "default", seed: Optional[int] = None) -> Da
         "last_measurements": [],
     }
 
-    def spawn_targets() -> None:
+    def spawn_targets(force: bool = False) -> None:
         area = state["area"]
-        if len(area.targets) < target_cfg.max_targets and np.random.rand() < target_cfg.spawn_rate:
+        if len(area.targets) >= target_cfg.max_targets:
+            return
+
+        if (not force) and np.random.rand() >= target_cfg.spawn_rate:
+            return
+
+        if len(area.targets) < target_cfg.max_targets:
             r = np.random.uniform(50_000, range_km * 1_000)
             ang = np.radians(np.random.uniform(angle_start, angle_end))
             px, py = r * np.cos(ang), r * np.sin(ang)
@@ -326,6 +332,8 @@ def create_app(scenario_name: str = "default", seed: Optional[int] = None) -> Da
 
         spawn_targets()
         state["area"].step()
+        for _ in range(state["area"].last_removed_targets):
+            spawn_targets(force=True)
         state["last_measurements"] = state["area"].last_measurements
         state["frame_count"] += 1
 
