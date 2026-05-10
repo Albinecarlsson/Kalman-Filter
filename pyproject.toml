@@ -48,10 +48,14 @@ select = ["E", "F", "I"]
 [tool.pyright]
 pythonVersion = "3.9"
 typeCheckingMode = "basic"
+include = [
+    "src/kalman_filter",
+]
 exclude = [
     "**/__pycache__",
     "web_radar_sim.py.bak",
     "web_radar_sim_backup2.py",
+    "src/kalman_filter/config.py",
 ]
 
 [tool.setuptools]
