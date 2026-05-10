@@ -199,8 +199,10 @@ class RadarTracker:
 
     def _create_track(self, initial_measurement: np.ndarray) -> None:
         """Create a new track from an initial measurement."""
-        kf = KF(initial_measurement[0], 0.0,
-                initial_measurement[1], 0.0,
+        initial_x = float(initial_measurement[0])
+        initial_y = float(initial_measurement[1])
+        kf = KF(initial_x, 0.0,
+            initial_y, 0.0,
                 self.acceleration_variance)
         track = TrackedObject(self.next_id, kf, self.current_time)
         track.update_with_measurement(initial_measurement, self.radar.measurement_noise, 

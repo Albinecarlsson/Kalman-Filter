@@ -48,6 +48,7 @@ select = ["E", "F", "I"]
 [tool.pyright]
 pythonVersion = "3.9"
 typeCheckingMode = "basic"
+reportPrivateImportUsage = "none"
 include = [
     "src/kalman_filter",
 ]
