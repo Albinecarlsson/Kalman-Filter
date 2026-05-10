@@ -28,6 +28,19 @@ dev = [
 [tool.ruff]
 line-length = 120
 target-version = "py39"
+extend-exclude = [
+    "artifacts",
+    "web_radar_sim.py.bak",
+    "web_radar_sim_backup2.py",
+    "config.py",
+    "kf.py",
+    "simulator.py",
+    "live_radar_sim.py",
+    "radar_demo.py",
+    "web_radar_sim.py",
+    "main.py",
+    "example_usage.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

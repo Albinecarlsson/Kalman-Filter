@@ -1,9 +1,8 @@
-import numpy as np
 import unittest
+
+import numpy as np
+
 from kf import KF
-
-
-
 
 
 class TestKF(unittest.TestCase):

@@ -1,6 +1,7 @@
 import argparse
-from .scenario import list_scenarios
+
 from .replay import compare_run_metadata
+from .scenario import list_scenarios
 
 
 def main(argv=None) -> int:
